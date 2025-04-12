@@ -3,19 +3,23 @@
 <head>
   <title>Private Chat</title>
   <style>
-    body { font-family: Arial; padding: 0; margin: 0; background: #f2f2f2; }
-    #chat { list-style: none; margin: 0; padding: 0; height: 90vh; overflow-y: scroll; }
-    #chat li { padding: 10px; border-bottom: 1px solid #ddd; }
-    form { position: fixed; bottom: 0; width: 100%; background: #fff; display: flex; }
-    input { flex: 1; padding: 10px; border: none; }
-    button { padding: 10px; background: #007bff; color: white; border: none; }
+    body { font-family: Arial; margin: 0; background: #f2f2f2; }
+    #chat { list-style: none; padding: 10px; height: 80vh; overflow-y: auto; }
+    #chat li { margin-bottom: 10px; }
+    form { position: fixed; bottom: 0; width: 100%; background: white; padding: 10px; display: flex; gap: 10px; }
+    input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ccc; }
+    button, input[type="file"] { padding: 10px; }
+    img, video { max-width: 300px; border-radius: 10px; }
   </style>
 </head>
 <body>
+
   <ul id="chat"></ul>
+
   <form id="form">
     <input id="input" autocomplete="off" placeholder="Type a message..." />
-    <button>Send</button>
+    <input type="file" id="fileInput" />
+    <button type="submit">Send</button>
   </form>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -24,10 +28,23 @@
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const chat = document.getElementById('chat');
+    const fileInput = document.getElementById('fileInput');
 
     form.addEventListener('submit', function(e) {
       e.preventDefault();
-      if (input.value) {
+
+      if (fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        fetch('/upload', {
+          method: 'POST',
+          body: formData
+        }).then(() => {
+          fileInput.value = '';
+        });
+
+      } else if (input.value.trim() !== '') {
         socket.emit('chat message', input.value);
         input.value = '';
       }
@@ -35,10 +52,29 @@
 
     socket.on('chat message', function(msg) {
       const item = document.createElement('li');
-      item.textContent = msg;
+
+      if (msg.type === 'text') {
+        item.textContent = msg.text;
+      } else if (msg.type === 'file') {
+        const ext = msg.url.split('.').pop().toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+          const img = document.createElement('img');
+          img.src = msg.url;
+          item.appendChild(img);
+        } else if (['mp4', 'webm', 'ogg'].includes(ext)) {
+          const video = document.createElement('video');
+          video.src = msg.url;
+          video.controls = true;
+          item.appendChild(video);
+        } else {
+          item.innerHTML = `<a href="${msg.url}" target="_blank">Download File</a>`;
+        }
+      }
+
       chat.appendChild(item);
       chat.scrollTop = chat.scrollHeight;
     });
   </script>
+
 </body>
 </html>
